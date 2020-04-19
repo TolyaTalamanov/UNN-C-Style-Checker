@@ -18,11 +18,11 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter): Rewrite(rewriter) {
+    CastCallBack(Rewriter& rewriter): _rewrite(rewriter) {
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+
 	const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
 
 	auto ReplaceRange = CharSourceRange::getCharRange(
@@ -41,17 +41,17 @@ public:
 
     	if (!isa<ParenExpr>(SubExpr)) {
       		s.push_back('(');
-	      	Rewrite.InsertText(
+	      	_rewrite.InsertText(
           		Lexer::getLocForEndOfToken(SubExpr->getEndLoc(),
 					 0,
 					 SM,
                                     	Result.Context->getLangOpts()),
           		")");
    	 }
-	Rewrite.ReplaceText(ReplaceRange, s);
+	_rewrite.ReplaceText(ReplaceRange, s);
     }
 private:
-	Rewriter &Rewrite;
+	Rewriter &_rewrite;
 };
 
 class MyASTConsumer : public ASTConsumer {
