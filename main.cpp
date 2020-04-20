@@ -18,13 +18,64 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+    CastCallBack(Rewriter& rewriter): rewriter_(rewriter) {
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        if (const CStyleCastExpr* ce = Result.Nodes.getNodeAs<CStyleCastExpr>("cast")) {
+            if (ce->getExprLoc().isMacroID())
+                return;
+            
+            if (ce->getCastKind() == CK_ToVoid)
+                return;
+
+            const auto DestTypeAsWritten = ce->getTypeAsWritten().getUnqualifiedType();
+            const auto SourceTypeAsWritten = ce->getSubExprAsWritten()->getType().getUnqualifiedType();
+            const auto SourceType = SourceTypeAsWritten.getCanonicalType();
+            const auto DestType = DestTypeAsWritten.getCanonicalType();
+            
+            auto&& SM = *Result.SourceManager;
+
+            auto rangeOfReplacement = 
+                CharSourceRange::getCharRange(ce->getLParenLoc(), ce->getSubExprAsWritten()->getBeginLoc());
+
+            auto destTypeStr = Lexer::getSourceText(CharSourceRange::getTokenRange(
+                                                    ce->getLParenLoc().getLocWithOffset(1),
+                                                    ce->getRParenLoc().getLocWithOffset(-1)),
+                                                    SM, Result.Context->getLangOpts());
+
+
+            auto castFunc = [&](auto&& cast) {
+                const Expr* subExpr = ce->getSubExprAsWritten()->IgnoreImpCasts();
+                if (!isa<ParenExpr>(subExpr)) {
+                    cast.push_back('(');
+                    rewriter_.InsertText(Lexer::getLocForEndOfToken(subExpr->getEndLoc(), 0, SM, Result.Context->getLangOpts()), ")");
+                }
+                rewriter_.ReplaceText(rangeOfReplacement, cast);
+            };
+
+            auto constCastCheck = [] (auto SourceType, auto DestType) -> bool {
+                while ((SourceType->isPointerType() && DestType->isPointerType()) ||
+                       (SourceType->isReferenceType() && DestType->isReferenceType())) {
+                    SourceType = SourceType->getPointeeType();
+                    DestType = DestType->getPointeeType();
+                    if (SourceType.isConstQualified() && !DestType.isConstQualified()) {
+                        return (SourceType->isPointerType() == DestType->isPointerType()) &&
+                                (SourceType->isReferenceType() == DestType->isReferenceType());
+                    }
+                }
+                return false;  
+            };
+
+            if (constCastCheck(SourceType, DestType)) {
+                castFunc("const_cast<" + destTypeStr.str()+">");
+            } else {
+                castFunc("static_cast<" + destTypeStr.str()+">");
+            }
+        }
     }
+private:
+    Rewriter& rewriter_;
 };
 
 class MyASTConsumer : public ASTConsumer {
