@@ -18,9 +18,7 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) { };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
         // Your code goes here
