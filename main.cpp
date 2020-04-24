@@ -21,8 +21,6 @@ public:
     CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-		
-		SourceManager &SM = *Result.SourceManager;
 
 		if (const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast")) {
 			if (CastExpr->getExprLoc().isMacroID())
@@ -31,6 +29,8 @@ public:
 			if (CastExpr->getCastKind() == CK_ToVoid)
 				return;
 			
+			SourceManager &SM = *Result.SourceManager;
+
 			const QualType DestTypeAsWritten =
 				CastExpr->getTypeAsWritten().getUnqualifiedType();
 			const QualType SourceTypeAsWritten =
