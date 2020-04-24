@@ -41,8 +41,6 @@ public:
 			auto ReplaceRange = CharSourceRange::getCharRange(
 				CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
 
-			SourceManager &SM = *Result.SourceManager;
-
 			StringRef DestTypeString =
 				Lexer::getSourceText(CharSourceRange::getTokenRange(
                                CastExpr->getLParenLoc().getLocWithOffset(1),
