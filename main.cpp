@@ -18,13 +18,48 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
+    CastCallBack(Rewriter& rewriter): _rewriter(rewriter) {
         // Your code goes here
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
         // Your code goes here
+	const auto *Item = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+	SourceManager &SourceM = *Result.SourceManager;	
+
+	//Ищем место с преобразованием, которое нам надо заменить
+	auto ReRange = CharSourceRange::getCharRange (Item->getLParenLoc(),
+						//Получаем cast expr как оно было написано в исходном коде, просматривая
+						//любые неявные приведения или другие промежуточные узлы, введенные
+						//семантическим анализом
+						      Item->getSubExprAsWritten()->getBeginLoc());
+
+	//Пытаемся выцепить к какому типу хотим привести
+	StringRef DestTypeString = 
+		//getSourceText - Возвращает строку для источника, охватывающую диапазон
+		Lexer::getSourceText(CharSourceRange::getTokenRange(Item->getLParenLoc().getLocWithOffset(1),
+								    Item->getRParenLoc().getLocWithOffset(-1)),
+		SourceM, Result.Context->getLangOpts());
+
+	std::string str = ("static_cast<" + DestTypeString + ">").str();
+
+	//IgnoreImpCasts - Пропускаем все неявные приведения, которые могу окружать это выражение (берем саму переменную)
+	const Expr *SubExpr = Item->getSubExprAsWritten()->IgnoreImpCasts();
+
+	if(!isa<ParenExpr>(SubExpr)) 
+	{
+		//Нужно написть ту переменную, которую будем приводить к другому типу
+		str.push_back('(');
+		_rewriter.InsertText(Lexer::getLocForEndOfToken(SubExpr->getEndLoc(),
+								0,
+								SourceM,
+								Result.Context->getLangOpts()),
+				     ")");
+	}
+	_rewriter.ReplaceText(ReRange, str);
     }
+private:
+	Rewriter& _rewriter;
 };
 
 class MyASTConsumer : public ASTConsumer {
