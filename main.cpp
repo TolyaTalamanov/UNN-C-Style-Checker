@@ -1,4 +1,4 @@
-#include <iostream>
+//#include <iostream>
 #include <sstream>
 
 #include <llvm/Support/CommandLine.h>
@@ -18,13 +18,38 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+    if (const auto *Cast_Term = Result.Nodes.getNodeAs<CStyleCastExpr>("cast")) {
+      if (Cast_Term->getCastKind() == CK_ToVoid)
+        return;
+      if (Cast_Term->getExprLoc().isMacroID())
+        return;
+
+      auto Replace_Range = CharSourceRange::getCharRange(
+        Cast_Term->getLParenLoc(), Cast_Term->getSubExprAsWritten()->getBeginLoc());
+
+      StringRef Target_Type_String = Lexer::getSourceText(CharSourceRange::getTokenRange(
+        Cast_Term->getLParenLoc().getLocWithOffset(1),
+        Cast_Term->getRParenLoc().getLocWithOffset(-1)),
+        *Result.SourceManager, Result.Context->getLangOpts());
+
+      std::string Cast_Template(("static_cast<" + Target_Type_String + ">").str());
+
+      const auto *Cast_Ignore = Cast_Term->getSubExprAsWritten()->IgnoreImpCasts();
+      
+      if (!isa<ParenExpr>(Cast_Ignore)) {
+        Cast_Template.push_back('(');
+        rewriter_.InsertText(Lexer::getLocForEndOfToken(Cast_Ignore->getEndLoc(),
+          0, *Result.SourceManager, Result.Context->getLangOpts()),
+          ")");
+      }
+      rewriter_.ReplaceText(Replace_Range, Cast_Template);
     }
+  }
+private:
+  Rewriter &rewriter_;
 };
 
 class MyASTConsumer : public ASTConsumer {
