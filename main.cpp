@@ -22,7 +22,7 @@ public:
 
     virtual void run(const MatchFinder::MatchResult &Result) {
 		auto castExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
-		if (castExpr == NULL) return;
+		if (castExpr == nullptr) return;
 		auto range = CharSourceRange::getCharRange (castExpr->getLParenLoc(),
 							 castExpr->getSubExprAsWritten()->getBeginLoc());
 		auto srcText = 
