@@ -18,13 +18,37 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+    CastCallBack(Rewriter& rewriter) : rewriter_cast(rewriter) {
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto *ExpCast = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        if (ExpCast != nullptr) {
+            // looking for a place with a cast that we need to replace
+            auto range = CharSourceRange::getCharRange (ExpCast->getLParenLoc(),ExpCast->getSubExprAsWritten()->getBeginLoc());
+
+            // looking for info about what type we want to lead(~cast) to
+            StringRef text =
+                Lexer::getSourceText(CharSourceRange::getTokenRange(ExpCast->getLParenLoc().getLocWithOffset(1), ExpCast->getRParenLoc().getLocWithOffset(-1)),
+                    *Result.SourceManager, Result.Context->getLangOpts());
+
+            std::string string_final = ("static_cast<" + text + ">").str();
+            const Expr *SubExpression = ExpCast->getSubExprAsWritten()->IgnoreImpCasts();
+
+            if(!isa<ParenExpr>(SubExpression))
+            {
+                string_final.push_back('(');
+                rewriter_cast.InsertText(Lexer::getLocForEndOfToken(SubExpression->getEndLoc(),
+                                        0,
+                                        *Result.SourceManager,
+                                        Result.Context->getLangOpts()), ")");
+                // string_final.push_back(')');
+            }
+            rewriter_cast.ReplaceText(range, string_final);
+        }
     }
+private:
+    Rewriter& rewriter_cast;
 };
 
 class MyASTConsumer : public ASTConsumer {
