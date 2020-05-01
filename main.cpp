@@ -28,9 +28,8 @@ public:
             auto range = CharSourceRange::getCharRange (ExpCast->getLParenLoc(),ExpCast->getSubExprAsWritten()->getBeginLoc());
 
             // looking for info about what type we want to lead(~cast) to
-            StringRef text =
-                Lexer::getSourceText(CharSourceRange::getTokenRange(ExpCast->getLParenLoc().getLocWithOffset(1), ExpCast->getRParenLoc().getLocWithOffset(-1)),
-                    *Result.SourceManager, Result.Context->getLangOpts());
+            StringRef text = Lexer::getSourceText(CharSourceRange::getTokenRange(ExpCast->getLParenLoc().getLocWithOffset(1), 
+                ExpCast->getRParenLoc().getLocWithOffset(-1)), *Result.SourceManager, Result.Context->getLangOpts());
 
             std::string string_final = ("static_cast<" + text + ">").str();
             const Expr *SubExpression = ExpCast->getSubExprAsWritten()->IgnoreImpCasts();
