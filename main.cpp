@@ -17,13 +17,25 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+	Rewriter *rewriter_;
 public:
     CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+        rewriter_=&rewriter;
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        SourceManager &SM = *Result.SourceManager;
+       	const CStyleCastExpr *cast_expression = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+	SourceLocation start = cast_expression->getBeginLoc();
+	SourceLocation end = cast_expression->getEndLoc();
+	
+	rewriter_->RemoveText(start,1);
+	rewriter_->RemoveText(end.getLocWithOffset(-1),1);
+	rewriter_->InsertText(start,"static_cast<");
+	rewriter_->InsertText(end,">(");
+
+	const Expr *expr = cast_expression->getSubExprAsWritten();
+	rewriter_->InsertText(Lexer::getLocForEndOfToken(expr->getEndLoc(),0,SM,LangOptions()), ")");
     }
 };
 
@@ -69,3 +81,4 @@ int main(int argc, const char **argv) {
 
     return Tool.run(newFrontendActionFactory<CStyleCheckerFrontendAction>().get());
 }
+
