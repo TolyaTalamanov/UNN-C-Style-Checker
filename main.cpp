@@ -17,13 +17,29 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+private:
+    Rewriter& rewriter_;
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto* CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        SourceManager &SM = *Result.SourceManager;
+        if (CastExpr->getExprLoc().isMacroID())
+            return;
+        if (CastExpr->getCastKind() == CK_ToVoid)
+            return;
+        if (SM.getFilename(SM.getSpellingLoc(CastExpr->getBeginLoc())).endswith(".c"))
+            return;
+        StringRef DestTypeString =
+            Lexer::getSourceText(CharSourceRange::getTokenRange(
+                CastExpr->getLParenLoc().getLocWithOffset(1),
+                CastExpr->getRParenLoc().getLocWithOffset(-1)),
+                SM, Result.Context->getLangOpts());
+        std::string replaceText = ("static_cast<" + DestTypeString + ">").str();
+        auto ReplaceRange = CharSourceRange::getCharRange(
+            CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+        rewriter_.ReplaceText(ReplaceRange, replaceText);
     }
 };
 
