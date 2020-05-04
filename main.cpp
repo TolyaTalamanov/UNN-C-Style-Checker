@@ -23,7 +23,7 @@ public:
     CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        const auto* CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        auto* CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
         SourceManager &SM = *Result.SourceManager;
         if (CastExpr->getExprLoc().isMacroID())
             return;
@@ -39,6 +39,13 @@ public:
         std::string replaceText = ("static_cast<" + DestTypeString + ">").str();
         auto ReplaceRange = CharSourceRange::getCharRange(
             CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+        auto castIgnore = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
+        if (!isa<ParenExpr>(castIgnore)) {
+            replaceText.push_back('(');
+            rewriter_.InsertText(Lexer::getLocForEndOfToken(castIgnore->getEndLoc(),
+                0, *Result.SourceManager,
+                Result.Context->getLangOpts()), ")");
+        }
         rewriter_.ReplaceText(ReplaceRange, replaceText);
     }
 };
