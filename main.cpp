@@ -1,8 +1,7 @@
 #include <iostream>
 #include <sstream>
-
 #include <llvm/Support/CommandLine.h>
-
+//
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/Diagnostic.h>
@@ -15,14 +14,39 @@
 using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
-
 class CastCallBack : public MatchFinder::MatchCallback {
+private:
+	Rewriter& rewriter_;
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
+
 
     virtual void run(const MatchFinder::MatchResult &Result) {
+	const auto* CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+	if (CastExpr != nullptr)//Returns NULL if there was no node bound to ID or if there is a node but it cannot be converted to the specified type. 
+	{
+		auto ReplaceRange = CharSourceRange::getCharRange(
+      		CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+
+		StringRef text = 
+		    Lexer::getSourceText(CharSourceRange::getTokenRange(
+						CastExpr->getLParenLoc().getLocWithOffset(1), 
+                				CastExpr->getRParenLoc().getLocWithOffset(-1)),
+						*Result.SourceManager, Result.Context->getLangOpts());
+		std::string replaceText = ("static_cast<" + text + ">").str();
+		
+
+		auto castIgnore = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
+		if(!isa<ParenExpr>(castIgnore)){
+		
+			replaceText.push_back('(');
+			rewriter_.InsertText(Lexer::getLocForEndOfToken(castIgnore->getEndLoc(),
+									0, *Result.SourceManager,
+									Result.Context->getLangOpts()), ")");
+		}
+
+		rewriter_.ReplaceText(ReplaceRange, replaceText);
+	}
         // Your code goes here
     }
 };
