@@ -16,15 +16,30 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
-class CastCallBack : public MatchFinder::MatchCallback {
+class CastCallBack : public MatchFinder::MatchCallback 
+{
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter): rewriter1(rewriter)
+	{
+	};
 
-    virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+    virtual void run(const MatchFinder::MatchResult &Result)
+	{
+        const auto *castexp = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+		auto &sourcem = *Result.SourceManager;
+		auto reprange = CharSourceRange::getCharRange (castexp->getLParenLoc(),
+								  castexp->getSubExprAsWritten()->getBeginLoc());
+		auto typeofstr = Lexer::getSourceText(CharSourceRange::getTokenRange(castexp->getLParenLoc().getLocWithOffset(1),
+										castexp->getRParenLoc().getLocWithOffset(-1)),
+										sourcem, Result.Context->getLangOpts());
+		auto str = ("static_cast<" + typeofstr + ">").str();
+		rewriter1.ReplaceText(reprange, str);
+		const auto *ignsubexp = castexp->getSubExprAsWritten()->IgnoreImpCasts();
+		auto esubexp = Lexer::getLocForEndOfToken(ignsubexp->getEndLoc(), 0, sourcem, Result.Context->getLangOpts());
+		rewriter1.InsertText(esubexp,")");
     }
+private:
+	Rewriter& rewriter1;
 };
 
 class MyASTConsumer : public ASTConsumer {
