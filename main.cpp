@@ -23,12 +23,10 @@ public:
     virtual void run(const MatchFinder::MatchResult &Result) {
         // Your code goes here
         const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        if (CastExpr==nullptr)
+            return;
+            
         SourceManager &SourceMng =  *Result.SourceManager;
-
-        if (CastExpr->getExprLoc().isMacroID())
-            return;
-        if (CastExpr->getCastKind() == CK_ToVoid)
-            return;
         auto val = CharSourceRange::getCharRange(CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
 
         StringRef DestTypeString = Lexer::getSourceText(CharSourceRange::getTokenRange(
