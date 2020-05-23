@@ -17,14 +17,34 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+    Rewriter& rewriter_;
+
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter){
+
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto *castExpres = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        auto &sourceManager = *Result.SourceManager;
+
+        auto range = CharSourceRange::getCharRange(castExpres->getLParenLoc(),
+         castExpres->getSubExprAsWritten()->getBeginLoc());
+         
+        auto typeStr = Lexer::getSourceText(CharSourceRange::getTokenRange(castExpres->getLParenLoc().getLocWithOffset(1),
+         castExpres->getRParenLoc().getLocWithOffset(-1)), 
+         sourceManager, Result.Context->getLangOpts());
+
+        std::string str = ("static_cast<" + typeStr + ">(").str();
+        rewriter_.ReplaceText(range, str);
+        auto subExpres = castExpres->getSubExprAsWritten()->IgnoreImpCasts();
+        const auto endOfSubExpes = Lexer::getLocForEndOfToken(subExpres->getEndLoc(), 0,
+         sourceManager,
+         Result.Context->getLangOpts());
+        rewriter_.InsertText(endOfSubExpes, ")");
+        
     }
+    
 };
 
 class MyASTConsumer : public ASTConsumer {
