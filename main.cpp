@@ -18,12 +18,37 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
-
+    CastCallBack(Rewriter& rewriter): _rewriter(rewriter) {};
+private:
+    Rewriter& _rewriter;
+public:
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+ 	const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        
+ 	if (CastExpr->getExprLoc().isMacroID())
+            return;
+
+        if (CastExpr->getCastKind() == CK_ToVoid)
+            return; 
+
+	auto ReplaceRange = CharSourceRange::getCharRange(
+        CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+
+	auto& SM = *Result.SourceManager;
+
+	const Expr *SubExpr = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
+
+	auto DestTypeString =
+		Lexer::getSourceText(CharSourceRange::getTokenRange(
+        	CastExpr->getLParenLoc().getLocWithOffset(1),
+	        CastExpr->getRParenLoc().getLocWithOffset(-1)),
+        	SM, Result.Context->getLangOpts());
+
+	std::string replaceText = ("static_cast<"+ DestTypeString +">(").str();
+
+	_rewriter.ReplaceText(ReplaceRange, replaceText);
+	_rewriter.InsertText(Lexer::getLocForEndOfToken(SubExpr->getEndLoc(),
+			                                    0, SM, Result.Context->getLangOpts()), ")");
     }
 };
 
