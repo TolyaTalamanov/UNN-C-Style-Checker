@@ -17,13 +17,33 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+    Rewriter& rwr;
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rwr(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto *expression = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        if (expression == nullptr) return;
+
+        auto location = CharSourceRange::getCharRange(
+            expression->getLParenLoc(),
+            expression->getSubExprAsWritten()->getBeginLoc());
+
+        auto sourceType = Lexer::getSourceText(
+            CharSourceRange::getTokenRange(
+            expression->getLParenLoc().getLocWithOffset(1),
+            expression->getRParenLoc().getLocWithOffset(-1)),
+            *Result.SourceManager, Result.Context->getLangOpts());
+
+        auto resType = ("static_cast<" + sourceType + ">(").str();
+        rwr.ReplaceText(location, resType);
+
+        auto closeParLoc = Lexer::getLocForEndOfToken(
+            expression->getSubExprAsWritten()->IgnoreImpCasts()->getEndLoc(),
+            0, *Result.SourceManager,
+            Result.Context->getLangOpts());
+
+        rwr.InsertText(closeParLoc, ")");
     }
 };
 
