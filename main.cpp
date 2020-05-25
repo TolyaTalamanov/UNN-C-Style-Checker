@@ -3,14 +3,14 @@
 
 #include <llvm/Support/CommandLine.h>
 
-#include <clang/ASTMatchers/ASTMatchFinder.h>
-#include <clang/ASTMatchers/ASTMatchers.h>
-#include <clang/Basic/Diagnostic.h>
-#include <clang/Frontend/FrontendActions.h>
-#include <clang/Tooling/CommonOptionsParser.h>
-#include <clang/Tooling/Tooling.h>
-#include <clang/Rewrite/Core/Rewriter.h>
-#include <clang/Frontend/CompilerInstance.h>
+//#include <clang/ASTMatchers/ASTMatchFinder.h>
+//#include <clang/ASTMatchers/ASTMatchers.h>
+//#include <clang/Basic/Diagnostic.h>
+// #include <clang/Frontend/FrontendActions.h>
+// #include <clang/Tooling/CommonOptionsParser.h>
+// #include <clang/Tooling/Tooling.h>
+// #include <clang/Rewrite/Core/Rewriter.h>
+// #include <clang/Frontend/CompilerInstance.h>
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -20,7 +20,7 @@ class CastCallBack : public MatchFinder::MatchCallback {
 public:
     CastCallBack(Rewriter& rewriter) {
         // Your code goes here
-    };
+    }
 
     virtual void run(const MatchFinder::MatchResult &Result) {
         // Your code goes here
