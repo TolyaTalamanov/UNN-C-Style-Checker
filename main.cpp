@@ -48,6 +48,7 @@ public:
         matcher_.addMatcher(
                 cStyleCastExpr(unless(isExpansionInSystemHeader())).bind("cast"), &callback_);
     }
+	
     void HandleTranslationUnit(ASTContext &Context) override {
         matcher_.matchAST(Context);
     }
@@ -55,8 +56,29 @@ private:
     CastCallBack callback_;
     MatchFinder matcher_;
 };
+
 class CStyleCheckerFrontendAction : public ASTFrontendAction {
 public:
     CStyleCheckerFrontendAction() = default;
     void EndSourceFileAction() override {
         rewriter_.getEditBuffer(rewriter_.getSourceMgr().getMainFileID())
+		            .write(llvm::outs());
+    }
+	
+    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef /* file */) override {
+        rewriter_.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
+        return std::make_unique<MyASTConsumer>(rewriter_);
+    }
+	
+private:
+    Rewriter rewriter_;
+};
+
+static llvm::cl::OptionCategory CastMatcherCategory("cast-matcher options");
+
+int main(int argc, const char **argv) {
+    CommonOptionsParser OptionsParser(argc, argv, CastMatcherCategory);
+    ClangTool Tool(OptionsParser.getCompilations(),
+            OptionsParser.getSourcePathList());
+    return Tool.run(newFrontendActionFactory<CStyleCheckerFrontendAction>().get());
+}
