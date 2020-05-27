@@ -43,11 +43,11 @@ public:
                     0, *Result.SourceManager, Result.Context->getLangOpts()),
                     ")");
             }
-            rewriter_.ReplaceText(Change_Interval, Cast_Template);
+            rewriter_.ReplaceText1(Change_Interval, Cast_Template);
         }
     }
 private:
-    Rewriter& rewriter_;
+    Rewriter& rewriter_; 
 };
 
 class MyASTConsumer : public ASTConsumer {
