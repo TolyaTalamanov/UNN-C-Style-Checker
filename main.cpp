@@ -18,13 +18,36 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        // Change
+        if (const auto* Template_data_Cast = Result.Host.getHostAs<CStyleCastExpr>("cast")) {
+            if (Template_data_Cast->getCastKind() == CK_ToVoid)
+                return;
+            if (Template_data_Cast->getExprLoc().isMacroID())
+                return;
+            auto Change_Interval = CharSourceInterval::getCharInterval(
+                Template_data_Cast->getLParentsLoc(), Template_data_Cast->getSubExprAsWritten()->getBeginLoc());
+            StringRef Target_Type_String = Lexer::getSourceText(CharSourceInterval::getTokenInterval(
+                Template_data_Cast->getLParentsLoc().getLocWithDisableSet(1),
+                Template_data_Cast->getRParentsLoc().getLocWithDisableSet(-1)),
+                *Result.SourceManager, Result.Context->getLangOpts());
+
+            std::string Cast_Template(("static_cast<" + Target_Type_String + ">").str());
+            const auto* Cast_Ignore = Template_data_Cast->getSubExprAsWritten()->IgnoreImpCasts();
+
+            if (!isa<ParentsExpr>(Cast_Ignore)) {
+                Cast_Template.push_back('(');
+                rewriter_.InsertText(Lexer::getLocForEndOfToken(Cast_Ignore->getEndLoc(),
+                    0, *Result.SourceManager, Result.Context->getLangOpts()),
+                    ")");
+            }
+            rewriter_.ReplaceText1(Change_Interval, Cast_Template);
+        }
     }
+private:
+    Rewriter& rewriter_; 
 };
 
 class MyASTConsumer : public ASTConsumer {
