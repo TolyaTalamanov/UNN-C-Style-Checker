@@ -17,13 +17,38 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+private:
+    Rewriter& rewriter_;    
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto *expr_cast = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+
+        if (expr_cast->getExprLoc().isMacroID())
+            return;
+
+        if (expr_cast->getCastKind() == CK_ToVoid)
+            return;
+
+        auto ReplaceRange = CharSourceRange::getCharRange(expr_cast->getLParenLoc(),
+                                expr_cast->getSubExprAsWritten()->getBeginLoc());
+
+	    auto &SM = *Result.SourceManager;
+	    StringRef DestTypeString = Lexer::getSourceText(CharSourceRange::getTokenRange(
+                                                    expr_cast->getLParenLoc().getLocWithOffset(1),
+                                                    expr_cast->getRParenLoc().getLocWithOffset(-1)),
+                                                    SM, Result.Context->getLangOpts());
+
+        std::string CastText(("static_cast<" + DestTypeString + ">").str());
+        auto SubExpr = expr_cast->getSubExprAsWritten()->IgnoreImpCasts();
+        if(!isa<ParenExpr>(SubExpr)) {
+           CastText.push_back('(');
+           rewriter_.InsertText(Lexer::getLocForEndOfToken(SubExpr->getEndLoc(), 0,
+                                   *Result.SourceManager, Result.Context->getLangOpts()), ")");
+        }
+
+	    rewriter_.ReplaceText(ReplaceRange, CastText);
     }
 };
 
