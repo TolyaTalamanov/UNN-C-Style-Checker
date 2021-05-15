@@ -18,13 +18,34 @@ using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+    CastCallBack(Rewriter& rewriter) : rewriter_(rewriter) {
+        // My code goes here
     };
 
     virtual void run(const MatchFinder::MatchResult &Result) {
         // Your code goes here
+        const auto* CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        auto& SM = *Result.SourceManager;
+
+        auto DestTypeString = Lexer::getSourceText(CharSourceRange::getTokenRange(
+            CastExpr->getLParenLoc().getLocWithOffset(1),
+            CastExpr->getRParenLoc().getLocWithOffset(-1)),
+            SM, Result.Context->getLangOpts());
+
+        auto s = ("static_cast<" + DestTypeString + ">(").str();
+        auto Range = CharSourceRange::getCharRange(
+            CastExpr->getLParenLoc(),
+            CastExpr->getSubExprAsWritten()->getBeginLoc());
+
+        rewriter_.ReplaceText(Range, s);
+
+        const auto* SubExpr = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
+        auto EndSubExpr = Lexer::getLocForEndOfToken(SubExpr->getEndLoc(), 0, SM, Result.Context->getLangOpts());
+
+        rewriter_.InsertText(EndSubExpr, ")");
     }
+private:
+    Rewriter& rewriter_;
 };
 
 class MyASTConsumer : public ASTConsumer {
