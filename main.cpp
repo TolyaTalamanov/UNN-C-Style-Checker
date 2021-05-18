@@ -17,13 +17,43 @@ using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
 class CastCallBack : public MatchFinder::MatchCallback {
+private:
+    Rewriter& _rewriter;
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
-    };
+    CastCallBack(Rewriter& rewriter) : _rewriter(rewriter) {};
 
     virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+        const auto *CastExpr = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+
+        if (CastExpr->getExprLoc().isMacroID())
+            return;
+
+        if (CastExpr->getCastKind() == CK_ToVoid)
+            return;
+
+        SourceManager &SM = *Result.SourceManager;
+
+        auto ReplaceRange = CharSourceRange::getCharRange(
+				CastExpr->getLParenLoc(), CastExpr->getSubExprAsWritten()->getBeginLoc());
+
+        StringRef DestTypeString =
+                Lexer::getSourceText(CharSourceRange::getTokenRange(
+                CastExpr->getLParenLoc().getLocWithOffset(1),
+                CastExpr->getRParenLoc().getLocWithOffset(-1)), SM, Result.Context->getLangOpts());
+
+        auto ReplaceWithCast = [&](std::string CastText) {
+                const Expr *SubExpr = CastExpr->getSubExprAsWritten()->IgnoreImpCasts();
+                if (!isa<ParenExpr>(SubExpr)) {
+                    CastText.push_back('(');
+                    _rewriter.InsertText(Lexer::getLocForEndOfToken(SubExpr->getEndLoc(), 0, SM, Result.Context->getLangOpts()), ")");
+                }
+                _rewriter.ReplaceText(ReplaceRange, CastText);
+        };
+        auto ReplaceWithNamedCast = [&](StringRef CastType) {
+				ReplaceWithCast((CastType + "<" + DestTypeString + ">").str());
+		};
+
+		ReplaceWithNamedCast("static_cast");
     }
 };
 
