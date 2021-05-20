@@ -16,34 +16,49 @@ using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::tooling;
 
-class CastCallBack : public MatchFinder::MatchCallback {
+class CastCallBack : public MatchFinder::MatchCallback
+{
 public:
-    CastCallBack(Rewriter& rewriter) {
-        // Your code goes here
+    CastCallBack(Rewriter& rewriter) : rewriter1(rewriter)
+    {
     };
 
-    virtual void run(const MatchFinder::MatchResult &Result) {
-        // Your code goes here
+    virtual void run(const MatchFinder::MatchResult& Result)
+    {
+        const auto* expectation_cast = Result.Nodes.getNodeAs<CStyleCastExpr>("cast");
+        auto& srcmng = *Result.SourceManager;
+        auto reprange = CharSourceRange::getCharRange(expectation_cast->getLParenLoc(), expectation_cast->getSubExprAsWritten()->getBeginLoc());
+        auto typeofstr = Lexer::getSourceText(CharSourceRange::getTokenRange(expectation_cast->getLParenLoc().getLocWithOffset(1), expectation_cast->getRParenLoc().getLocWithOffset(-1)), srcmng, Result.Context->getLangOpts());
+        auto str = ("static_cast<" + typeofstr + ">").str();
+        rewriter1.ReplaceText(reprange, str);
+        const auto* ignsubexp = expectation_cast->getSubExprAsWritten()->IgnoreImpCasts();
+        auto esubexp = Lexer::getLocForEndOfToken(ignsubexp->getEndLoc(), 0, srcmng, Result.Context->getLangOpts());
+        rewriter1.InsertText(esubexp, ")");
     }
+private:
+    Rewriter& rewriter1;
 };
 
-class MyASTConsumer : public ASTConsumer {
+class MyASTConsumer : public ASTConsumer 
+{
 public:
-    MyASTConsumer(Rewriter &rewriter) : callback_(rewriter) {
+    MyASTConsumer(Rewriter& rewriter) : callback_(rewriter) 
+	{
         matcher_.addMatcher(
-                cStyleCastExpr(unless(isExpansionInSystemHeader())).bind("cast"), &callback_);
+            cStyleCastExpr(unless(isExpansionInSystemHeader())).bind("cast"), &callback_);
     }
 
-    void HandleTranslationUnit(ASTContext &Context) override {
+    void HandleTranslationUnit(ASTContext& Context) override 
+	{
         matcher_.matchAST(Context);
     }
-
 private:
     CastCallBack callback_;
     MatchFinder matcher_;
 };
 
-class CStyleCheckerFrontendAction : public ASTFrontendAction {
+class CStyleCheckerFrontendAction : public ASTFrontendAction 
+{
 public:
     CStyleCheckerFrontendAction() = default;
     void EndSourceFileAction() override {
@@ -51,7 +66,8 @@ public:
             .write(llvm::outs());
     }
 
-    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef /* file */) override {
+    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance& CI, StringRef /* file */) override 
+	{
         rewriter_.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
         return std::make_unique<MyASTConsumer>(rewriter_);
     }
@@ -62,10 +78,11 @@ private:
 
 static llvm::cl::OptionCategory CastMatcherCategory("cast-matcher options");
 
-int main(int argc, const char **argv) {
+int main(int argc, const char** argv) 
+{
     CommonOptionsParser OptionsParser(argc, argv, CastMatcherCategory);
     ClangTool Tool(OptionsParser.getCompilations(),
-            OptionsParser.getSourcePathList());
+        OptionsParser.getSourcePathList());
 
     return Tool.run(newFrontendActionFactory<CStyleCheckerFrontendAction>().get());
 }
